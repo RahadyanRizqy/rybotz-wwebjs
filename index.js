@@ -88,7 +88,7 @@ client.on('message', async (message) => {
         console.log(message);
     
         if (messageBody[0] === 'help') {
-            await chat.sendMessage('Contoh Pemakaian\n\n1. Mengisi Kehadiran\nhadir#NIM#pertemuan0\ncth: hadir#212410103087#pertemuan11\n\n2. Mengajukan Perizinan (Surat Berupa Softfile PDF/Gambar)\nizin#NIM#pertemuan0#pesanataualasan\ncth: izin#212410101059#pertemuan12#Assalamualaikum/Selamat siang permisi saya izin dikarenakan blablabla...\n\n3. Mengajukan Perizinan (Bila Masih Belum Ada Softfile)\nizin#NIM#pertemuan0#pesanataualasan#nyusul\ncth: izin#212410103073#pertemuan13#Assalamualaikum/Selamat siang permisi saya izin dikarenakan blablabla...#nyusul\n\n*NOTE:* Semua pesan dikirim dengan mencantumkan gambar saat sesi kelas atau surat saat perizinan (bila ada), tidak boleh dipisah - pisah nanti ngambek dan bingung soalnya emang awigwog...\n\nContoh pengiriman sebagai berikut');
+            await chat.sendMessage('Contoh Pemakaian\n\n1. Mengisi Kehadiran\nhadir#NIM#pertemuan0\ncth: hadir#212410103087#pertemuan11\n\n2. Mengajukan Perizinan (Surat Berupa Softfile PDF/Gambar)\nizin#NIM#pertemuan0\ncth: izin#212410101059#pertemuan12\n\n3. Mengajukan Perizinan (Bila Masih Belum Ada Softfile)\nizin#NIM#pertemuan0\ncth: izin#212410103073#pertemuan13\n\n*NOTE:* Semua pesan dikirim dengan mencantumkan gambar saat sesi kelas atau surat saat perizinan (bila ada), tidak boleh dipisah - pisah nanti ngambek dan bingung soalnya emang awigwog...\n\nContoh pengiriman sebagai berikut');
             const exampleImage = MessageMedia.fromFilePath('contoh.jpeg');
             const examplePDF = MessageMedia.fromFilePath('contoh.pdf');
             await chat.sendMessage(exampleImage, {
@@ -150,6 +150,7 @@ client.on('message', async (message) => {
                 if (checkData.exists()) {
                     await deleteExistingData(checkData.val());
                     await db.ref(`${kelas}/${nim}/izin/pertemuan${pertemuan}`).set(`${dest}/${formatFileName}`);
+                    await db.ref()
                 }
                 else {
                     await db.ref(`${kelas}/${nim}/izin/pertemuan${pertemuan}`).set(`${dest}/${formatFileName}`);
@@ -199,6 +200,7 @@ client.on('message', async (message) => {
         await client.sendMessage(message.from, 'Bisa dicoba kirim lagi?');
         logErrorToFile(error);
     }
+    await message.delete();
 });
 
 client.initialize();
