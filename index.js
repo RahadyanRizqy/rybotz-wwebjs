@@ -3,7 +3,7 @@ const qrcode = require('qrcode-terminal');
 const os = require('os');
 const { format } = require('date-fns');
 const { zonedTimeToUtc } = require('date-fns-tz');
-const { uploadBase64Image, db, admin } = require('./upload');
+const { uploadBase64, deleteExistingData, db, admin } = require('./upload');
 const fs = require('fs');
 const path = require('path');
 
@@ -18,7 +18,7 @@ if (os.platform() === 'linux') {
             args: [ '--no-sandbox', '--disable-setuid-sandbox' ]
         },
         ffmpeg: './ffmpeg.exe',
-        authStrategy: new LocalAuth({ clientId: `${clientId}`}),
+        authStrategy: new LocalAuth({ clientId: process.env.CLIENT_ID }),
     });
 } else {
     client = new Client({
@@ -27,7 +27,7 @@ if (os.platform() === 'linux') {
             args: [ '--no-sandbox', '--disable-setuid-sandbox' ]
         },
         ffmpeg: './ffmpeg.exe',
-        authStrategy: new LocalAuth({ clientId: `${clientId}`}),
+        authStrategy: new LocalAuth({ clientId: process.env.CLIENT_ID }),
     });
 }
 
@@ -84,6 +84,8 @@ client.on('message', async (message) => {
         const datetime = formatDateTimeNow('Asia/Jakarta', 'dd-MM-yyyy HH.mm.ss');
         const chat = await message.getChat();
         const messageBody = message.body.split("#");
+
+        console.log(message);
     
         if (messageBody[0] === 'help') {
             await chat.sendMessage('Contoh Pemakaian\n\n1. Mengisi Kehadiran\nhadir#NIM#pertemuan0\ncth: hadir#212410103087#pertemuan11\n\n2. Mengajukan Perizinan (Surat Berupa Softfile PDF/Gambar)\nizin#NIM#pertemuan0#pesanataualasan\ncth: izin#212410101059#pertemuan12#Assalamualaikum/Selamat siang permisi saya izin dikarenakan blablabla...\n\n3. Mengajukan Perizinan (Bila Masih Belum Ada Softfile)\nizin#NIM#pertemuan0#pesanataualasan#nyusul\ncth: izin#212410103073#pertemuan13#Assalamualaikum/Selamat siang permisi saya izin dikarenakan blablabla...#nyusul\n\n*NOTE:* Semua pesan dikirim dengan mencantumkan gambar saat sesi kelas atau surat saat perizinan (bila ada), tidak boleh dipisah - pisah nanti ngambek dan bingung soalnya emang awigwog...\n\nContoh pengiriman sebagai berikut');
@@ -112,28 +114,21 @@ client.on('message', async (message) => {
                 const media = await message.downloadMedia();
                 const formatFileName = `${nim}_${kelas}_hp${pertemuan}_${datetime}` + '.' + media.mimetype.split('/')[1];
                 const dest = `kelas_${kelas}/dok_hadir`;
-                db.ref(kelas).child(nim).child('hadir').child(`pertemuan${pertemuan}`).set(`${dest}/${formatFileName}`);
-                uploadBase64Image(media.data, formatFileName, dest)
-                    .then(async (result) => {
-                        await chat.sendMessage(`*Kehadiran Praktikan PWEB Kelas ${kelas.toUpperCase()}*\nPertemuan Ke: ${pertemuan}\nTanggal: ${date}\nNIM: ${nim}\n\nSudah disimpan, jangan lupa hadir di pertemuan berikutnya! 😇👍`);
+                const checkData = await db.ref(`${kelas}/${nim}/hadir/pertemuan${pertemuan}`).once('value');
+                if (checkData.exists()) {
+                    await deleteExistingData(checkData.val());
+                    await db.ref(`${kelas}/${nim}/hadir/pertemuan${pertemuan}`).set(`${dest}/${formatFileName}`);
+                }
+                else {
+                    await db.ref(`${kelas}/${nim}/hadir/pertemuan${pertemuan}`).set(`${dest}/${formatFileName}`);
+                }
+                uploadBase64(media.data, formatFileName, dest)
+                    .then(async (res) => {
+                        await chat.sendMessage(`*Kehadiran Praktikan PWEB Kelas ${kelas.toUpperCase()}*\n\nPertemuan Ke: ${pertemuan}\nTanggal: ${date}\nNIM: ${nim}\n\nSudah tersimpan, jangan lupa hadir di pertemuan berikutnya! 😇👍`);
                     })
-                    .catch((error) => {
-                        throw error;
+                    .catch((err) => {
+                        throw err;
                     });
-                // console.log(media.data);
-                // const filename = path.join('./temp_uploads', formatFileName);
-                // fs.writeFileSync(filename, media.data, 'base64');
-
-                // if (kelas === 'C') {
-                //     await uploadMediaToDrive('./temp_uploads', formatFileName, 'image/jpeg', '1lnJiHVWfnE2QGGwpwPPjpIdxuC4rNg-u');
-                // }
-                // if (kelas === 'A') {
-                //     await uploadMediaToDrive('./temp_uploads', formatFileName, 'image/jpeg', '13gsqiGg8thqLNqNZVtE4rzd8JbODR6JY');
-                // }
-
-
-
-                // await fs.promises.unlink(filename);
             }
             else {
                 await chat.sendMessage('Cantumkan media!');
@@ -149,16 +144,26 @@ client.on('message', async (message) => {
 
             if (message.hasMedia) {
                 const media = await message.downloadMedia();
-                // const formatFileName = `${nim}_Perizinan Pertemuan ${pertemuan}_${datetime}` + '.' + media.mimetype.split('/')[1];
-                // const filename = path.join('./temp_uploads', formatFileName);
-                // fs.writeFileSync(filename, media.data, 'base64');
-
-                // await uploadMedia('./temp_uploads', formatFileName, 'image/jpeg', '1k2xp4mrP7X47qaBZsNMhdboY1oRGjGOD');
-            
-                await chat.sendMessage(`*Perizinan Praktikan PWEB Kelas ${kelas}*\nPertemuan Ke: ${pertemuan}\nTanggal: ${date}\nNIM: ${nim}\nAlasan: ${alasan}\n\nSudah disimpan, jangan lupa untuk surat fisiknya ya! 😇👍`);
+                const formatFileName = `${nim}_${kelas}_ip${pertemuan}_${datetime}` + '.' + media.mimetype.split('/')[1];
+                const dest = `kelas_${kelas}/dok_izin`;
+                const checkData = await db.ref(`${kelas}/${nim}/izin/pertemuan${pertemuan}`).once('value');
+                if (checkData.exists()) {
+                    await deleteExistingData(checkData.val());
+                    await db.ref(`${kelas}/${nim}/izin/pertemuan${pertemuan}`).set(`${dest}/${formatFileName}`);
+                }
+                else {
+                    await db.ref(`${kelas}/${nim}/izin/pertemuan${pertemuan}`).set(`${dest}/${formatFileName}`);
+                }
+                uploadBase64(media.data, formatFileName, dest)
+                    .then(async (res) => {
+                        await chat.sendMessage(`*Perizinan Praktikan PWEB Kelas ${kelas}*\n\nPertemuan Ke: ${pertemuan}\nTanggal: ${date}\nNIM: ${nim}\nAlasan: ${alasan}\n\nSudah tersimpan, jangan lupa untuk surat fisiknya ya! 😇👍`);
+                    })
+                    .catch((err) => {
+                        throw err;
+                    });
             }
             else {
-                await chat.sendMessage(`*Perizinan Praktikan PWEB Kelas ${kelas}*\nPertemuan Ke: ${pertemuan}\nTanggal: ${date}\nNIM: ${nim}\nAlasan: ${alasan}\n\nSudah disimpan, jangan lupa untuk konfirmasi suratnya ke asprak ya!\nKarena suratnya nyusul! 😇👍`);
+                await chat.sendMessage(`*Perizinan Praktikan PWEB Kelas ${kelas}*\n\nPertemuan Ke: ${pertemuan}\nTanggal: ${date}\nNIM: ${nim}\nAlasan: ${alasan}\n\nSudah tersimpan, jangan lupa untuk konfirmasi suratnya ke asprak ya!\nKarena suratnya nyusul! 😇👍`);
             }
         }
 
@@ -167,7 +172,27 @@ client.on('message', async (message) => {
                 await chat.sendMessage('NIM tidak terdaftar!');
                 return
             }
-            chat.sendMessage(`Praktikan PWEB Kelas ${kelas.toUpperCase()}\nNIM: ${nim}\n\n*Terkonfirmasi!*`);
+            await chat.sendMessage(`Praktikan PWEB Kelas ${kelas.toUpperCase()}\nNIM: ${nim}\n\n*Terkonfirmasi!*`);
+        }
+
+        if (messageBody[0] === 'dok') {
+            if (messageBody.length <= 2) {
+                await chat.sendMessage('Ada yang salah!');
+            }
+            if (!message.hasMedia) {
+                await chat.sendMessage('Cantumkan media!');
+                return
+            }
+            const media = await message.downloadMedia();
+            const formatFileName = `${nim}_dp${pertemuan}_${datetime}` + '.' + media.mimetype.split('/')[1];
+            const dest = `kelas_${nim}/dok_kelas`;
+            uploadBase64(media.data, formatFileName, dest)
+                .then(async (res) => {
+                    await chat.sendMessage(`*Dokumentasi PWEB Kelas ${nim.toUpperCase()} Pertemuan ${pertemuan}*\n\nSudah tersimpan, jangan lupa hadir di pertemuan berikutnya! 😇👍`);
+                })
+                .catch((err) => {
+                    throw err;
+                });
         }
     }
     catch (error) {

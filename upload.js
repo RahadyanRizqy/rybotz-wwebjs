@@ -17,17 +17,27 @@ const app = initializeApp(firebaseConfig);
 // END FIREBASE INIT //
 
 // FIREBASE STORAGE //
-const { getStorage, ref, uploadString } = require('firebase/storage');
+const { getStorage, ref, uploadString, deleteObject } = require('firebase/storage');
 const storage = getStorage(app);
 // END FIREBASE STORAGE //
 
-async function uploadBase64Image(base64String, filename, folder) {
+async function uploadBase64(base64String, filename, folder) {
     try {
         const fileRef = ref(ref(storage, folder), filename);
         await uploadString(fileRef, base64String, 'base64');
     } catch (error) {
         throw error;
     }
+}
+
+async function deleteExistingData(path) {
+  try {
+    const fileRef = ref(storage, path);
+    await deleteObject(fileRef);
+  }
+  catch (error) {
+    throw error;
+  }
 }
 
 const admin = require('firebase-admin');
@@ -38,4 +48,4 @@ admin.initializeApp({
 });
 const db = admin.database();
 
-module.exports = { uploadBase64Image, db, admin };
+module.exports = { uploadBase64, deleteExistingData, db, admin };
